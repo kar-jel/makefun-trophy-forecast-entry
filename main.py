@@ -109,10 +109,13 @@ def self_test() -> None:
         cases.append(case)
     for speed,gain in ((1.2,1.0),(2.0,1.6),(3.5,2.2)):
         c=score.synth_case("synthetic",60,108,tau_days=speed,gain=gain)
-        # Feed numeric-hour synthetic history through the same forecast contract.
         pred=model.forecast(c); forecast={r["id"]:r["q"] for r in pred["trophies"]}
-        our=score.case_loss(c,forecast); base=score.case_loss(c,score.house_baseline(c))
-        print("synthetic",speed,gain,"model",round(our,6),"baseline",round(base,6))
+        previous={}
+        for i,t in enumerate(c["trophies"]):
+            last=c["history"][-1]["rates"][i]; lg=score.logit(last); spread=.5*math.sqrt(c["horizon_minutes"]/1440)
+            previous[t["id"]]=[score.inv_logit(lg+z*spread) for z in score.Z]
+        our=score.case_loss(c,forecast); prev=score.case_loss(c,previous); base=score.case_loss(c,score.house_baseline(c))
+        print("synthetic",speed,gain,"new",round(our,6),"previous",round(prev,6),"baseline",round(base,6))
 
 
 if __name__ == "__main__":
