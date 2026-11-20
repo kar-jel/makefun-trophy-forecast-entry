@@ -27,3 +27,15 @@ Verification from `python3 /home/agentuser/makefun/forecast/verify_model.py` (me
 The current synthetic evaluation is slightly worse than baseline; this remains a limitation. Practice cases ship without target answer reads, so verifier losses are unavailable for them.
 
 Run `MAKEFUN_OUTPUT_DIR=out python3 main.py --self-test`; standard library only.
+
+Entrypoints: `main.py` runs the Python model in `model.py`; `main.ts` is its Node 22 TypeScript port. Both read every `.in` case and write the matching `.out` JSON.
+
+Python/TypeScript agreement (largest absolute quantile difference, percentage points):
+
+| Case | Max absolute difference |
+|---|---:|
+| p00 | 0.0000000000 |
+| p01 | 0.0000000000 |
+| launchweek synthetic | 0.0000000000 |
+
+Verified with `python3 tools/compare.py`; all three cases also passed output-shape, range, ordering, unique-id, size, and runtime checks.
