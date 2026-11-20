@@ -1,5 +1,7 @@
 GTA VI trophy rarity forecast
 
+[![make.fun badge](https://make.fun/badge/gta6-trophy-rarity-forecast-01.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01) [![make.fun badge](https://make.fun/badge/gta6-trophy-rarity-forecast-01/kar-jel/makefun-trophy-forecast-entry/rank.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01) [![make.fun badge](https://make.fun/badge/gta6-trophy-rarity-forecast-01/kar-jel/makefun-trophy-forecast-entry/reward.svg)](https://make.fun/bounty/gta6-trophy-rarity-forecast-01)
+
 The forecast separates tracked players from trophy earners. Tracked counts are projected independently with recent log-growth and a damped launch curve. Earners are reconstructed from rate × tracked count, smoothed toward tier priors, then projected with tier-pooled damped logit slopes. The target rate divides projected earners by projected tracked players.
 
 Explicit chapter, first-story, final-mission, and numeric progression descriptions provide an order only where the text supports one. The highest observed ordered rates estimate the wave front; order distance sets arrival uncertainty. Behind-front trophies keep the last-rate median until arrival is plausible, while their upper quantiles include arrival scenarios. Past-front trophies retain the damped earned-rate extrapolation. Unordered trophies use the pooled-slope model.
