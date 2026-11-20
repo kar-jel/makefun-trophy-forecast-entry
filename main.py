@@ -38,6 +38,7 @@ from pathlib import Path
 
 # The grader's -P leaves /bot off sys.path: put it back first, so `import model` finds a model.py shipped beside this file.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import model
 
 INPUT_DIR = Path(os.environ.get("MAKEFUN_INPUT_DIR", "/input"))
 OUTPUT_DIR = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
@@ -76,23 +77,42 @@ def forecast_case(case: dict, name: str) -> dict:
         raise ValueError(f"{name} asks for levels {case['levels']}, not {LEVELS}")
     if not case["history"]:
         raise ValueError(f"{name} has no history")
-    last = case["history"][-1]
-    spread = SIGMA * math.sqrt(case["horizon_minutes"] / 1440)
-    rows = []
-    for i, trophy in enumerate(case["trophies"]):
-        rate = last["rates"][i]
-        lg = logit(rate if rate is not None else 0)
-        rows.append({"id": trophy["id"], "q": [round4(100 / (1 + math.exp(-(lg + z * spread)))) for z in Z]})
-    return {"trophies": rows}
+    return model.forecast(case)
 
 
 def main() -> None:
+    if "--self-test" in sys.argv:
+        self_test()
+        return
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     # Every case file, in name order, so two runs write the same bytes.
     for path in sorted(INPUT_DIR.glob("*.in")):
         case = json.loads(path.read_text(encoding="utf-8"))
         forecast = forecast_case(case, path.name)
         (OUTPUT_DIR / f"{path.stem}.out").write_text(json.dumps(forecast, separators=(",", ":")) + "\n", encoding="utf-8")
+
+
+def self_test() -> None:
+    import importlib.util, tempfile
+    from datetime import datetime, timezone
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    spec=importlib.util.spec_from_file_location("local_score", "/home/agentuser/makefun/forecast/local_score.py")
+    score=importlib.util.module_from_spec(spec); spec.loader.exec_module(score)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    cases=[]
+    for path in sorted(INPUT_DIR.glob("*.in")):
+        case=json.loads(path.read_text()); out=forecast_case(case,path.name)
+        dest=OUTPUT_DIR/(path.stem+".out"); dest.write_text(json.dumps(out,separators=(",",":"))+"\\n" if False else json.dumps(out,separators=(",",":"))+chr(10))
+        qs=[r["q"] for r in out["trophies"]]; assert all(len(q)==5 and q==sorted(q) for q in qs)
+        assert dest.stat().st_size<=65536
+        print(case["id"],len(qs),min(q[2] for q in qs),max(q[2] for q in qs),max(q[4]-q[0] for q in qs))
+        cases.append(case)
+    for speed,gain in ((1.2,1.0),(2.0,1.6),(3.5,2.2)):
+        c=score.synth_case("synthetic",60,108,tau_days=speed,gain=gain)
+        # Feed numeric-hour synthetic history through the same forecast contract.
+        pred=model.forecast(c); forecast={r["id"]:r["q"] for r in pred["trophies"]}
+        our=score.case_loss(c,forecast); base=score.case_loss(c,score.house_baseline(c))
+        print("synthetic",speed,gain,"model",round(our,6),"baseline",round(base,6))
 
 
 if __name__ == "__main__":
