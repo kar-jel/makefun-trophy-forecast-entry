@@ -15,10 +15,10 @@ def _inv(x):
 
 def _median(xs):
     a=sorted(xs); n=len(a)
-    return a[n//2] if n%2 else (a[n//2-1]+a[n//2])/2
+    return (a[n//2] if n%2 else (a[n//2-1]+a[n//2])/2) if n else 0.0
 
 def _order(description):
-    d=description.lower()
+    d=description.lower() if isinstance(description,str) else ''
     m=re.search(r'complete chapter (\d+)',d)
     if m: return 100+int(m.group(1))
     if 'complete gone fishing' in d: return 1
@@ -32,9 +32,10 @@ def _order(description):
     return None
 
 def forecast(case):
- hist=case.get('history') or [{'slot': 0, 'players_tracked': 1, 'rates': [None] * len(case.get('trophies', []))}]; n=len(case['trophies']); H=max(0,case['horizon_minutes']/1440)
+ trophies=case.get('trophies') if isinstance(case.get('trophies'),list) else []; n=len(trophies); rawhist=case.get('history') if isinstance(case.get('history'),list) else []; hist=rawhist or [{'slot': 0, 'players_tracked': 1, 'rates': [None] * n}]; H=max(0,(case.get('horizon_minutes') if isinstance(case.get('horizon_minutes'),(int,float)) else 0)/1440)
  # Normalize hostile-but-legal ragged reads before any positional indexing.
- hist=[dict(row, rates=(list(row.get('rates') or [])[:n] + [None]*max(0,n-len(row.get('rates') or [])))) for row in hist]
+ hist=[dict(row if isinstance(row,dict) else {}, rates=[(x if isinstance(x,(int,float)) and math.isfinite(x) else None) for x in ((row.get('rates') if isinstance(row,dict) and isinstance(row.get('rates'),list) else [])[:n] + [None]*max(0,n-len(row.get('rates') if isinstance(row,dict) and isinstance(row.get('rates'),list) else [])))]) for row in hist]
+ if not hist: hist=[{'slot':0,'players_tracked':1,'rates':[None]*n}]
  def hours(v):
   if isinstance(v,(int,float)): return float(v)
   from datetime import datetime
@@ -53,7 +54,8 @@ def forecast(case):
    else:
     k=min(N,max(0,math.floor(r*N/100+.5))); counts[i].append(k); logs[i].append(_logit_pct(100*(k+.5)/(N+1)))
  groups={}
- for i,t in enumerate(case['trophies']): groups.setdefault(t.get('tier','unknown'),[]).append(i)
+ for i,t in enumerate(trophies):
+  t=t if isinstance(t,dict) else {}; groups.setdefault(t.get('tier','unknown'),[]).append(i)
  current=[]; slopes=[]; residual=[]; flats=[]; missing=[]; fallback_logs=[]
  for i,arr in enumerate(logs):
   good=[(tt,y) for tt,y in zip(th,arr) if y is not None]; r=[x for x in good if x[0]>=cutoff] or good[-12:]
@@ -73,7 +75,7 @@ def forecast(case):
  for inds in groups.values():
   r=[1000*k/N for i in inds for k,N in zip(counts[i],Ns) if k is not None]
   for i in inds: priors[i]=_median(r) if r else .1
- orders={i:_order(t.get('description','')) for i,t in enumerate(case['trophies'])}
+ orders={i:_order(t.get('description','') if isinstance(t,dict) else '') for i,t in enumerate(trophies)}
  progression=sorted((o,i) for i,o in orders.items() if o is not None)
  observed=[(o,i,hist[-1]['rates'][i] or 0) for o,i in progression]
  front_o=max((o for o,i,r in observed if r>=5),default=min((o for o,i in progression),default=0))
@@ -81,10 +83,11 @@ def forecast(case):
  front=max(0,_logit_pct(front_rate)-_logit_pct(.01))
  step=max(.08,min(.6,front/max(1,front_o-min((o for o,i in progression),default=front_o))))
  rows=[]
- for i,t in enumerate(case['trophies']):
-  last=counts[i][-1]; N=Ns[-1]
+ for i,t in enumerate(trophies):
+  t=t if isinstance(t,dict) else {'id':i}
+  last=counts[i][-1] if counts[i][-1] is not None else 0; N=Ns[-1]
   if missing[i]:
-   fallback=max(.001,min(.1,_median([1000*k/Ns[j] for j,other in enumerate(counts) if j!=i for k in other if k is not None]) if any(k is not None for j,other in enumerate(counts) if j!=i for k in other) else .01))
+   fallback=max(.001,min(.1,_median([1000*k/Ns[jj] for j,other in enumerate(counts) if j!=i for jj,k in enumerate(other) if k is not None and jj<len(Ns)]) if any(k is not None for j,other in enumerate(counts) if j!=i for k in other) else .01))
    last=max(0,min(N,math.floor(fallback*N/1000+.5)))
   if last==N and hist[-1]['rates'][i] is not None and hist[-1]['rates'][i]>=99.995: qs=[100.]*5
   else:
@@ -110,5 +113,5 @@ def forecast(case):
    if last==0 and not waiting: qs[2]=max(qs[2],min(.1,priors[i]/10)); qs[3]=max(qs[3],qs[2]); qs[4]=max(qs[4],qs[3])
   q=[round(x+1e-12,4) for x in qs]
   for j in range(1,5): q[j]=max(q[j],q[j-1])
-  rows.append({'id':t['id'],'q':q})
+  rows.append({'id':t.get('id',i),'q':q})
  return {'trophies':rows}

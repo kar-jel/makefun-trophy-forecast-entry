@@ -75,8 +75,6 @@ def round4(x: float) -> float | int:
 def forecast_case(case: dict, name: str) -> dict:
     if case["levels"] != LEVELS:
         raise ValueError(f"{name} asks for levels {case['levels']}, not {LEVELS}")
-    if not case["history"]:
-        raise ValueError(f"{name} has no history")
     return model.forecast(case)
 
 

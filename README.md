@@ -15,7 +15,18 @@ Practice mean logit pinball loss against answer set to the final observed rate (
 | p00 | 0.004926 | 0.024858 |
 | p01 | 0.004926 | 0.024858 |
 
-Verification from `python3 /home/agentuser/makefun/forecast/verify_model.py` (mean logit pinball loss; lower is better):
+Verification (both entrypoints; fuzz failures out of 240 per seed):
+
+| Check | Result |
+|---|---|
+| Fuzz seed 11 | 0 / 240 failures |
+| Fuzz seed 29 | 0 / 240 failures |
+| Fuzz seed 43 | 0 / 240 failures |
+| Edge suite | all 10 cases valid on Python and Node |
+| Locked sandbox (UID 65534, read-only repo) | Python exit 0, Node exit 0; 55 rows each |
+| Normal-case comparison | p00 and p01: max quantile delta 0.0000 pp vs pre-change |
+
+
 
 | Check | Result |
 |---|---|
