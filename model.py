@@ -32,7 +32,9 @@ def _order(description):
     return None
 
 def forecast(case):
- hist=case['history']; n=len(case['trophies']); H=max(0,case['horizon_minutes']/1440)
+ hist=case.get('history') or [{'slot': 0, 'players_tracked': 1, 'rates': [None] * len(case.get('trophies', []))}]; n=len(case['trophies']); H=max(0,case['horizon_minutes']/1440)
+ # Normalize hostile-but-legal ragged reads before any positional indexing.
+ hist=[dict(row, rates=(list(row.get('rates') or [])[:n] + [None]*max(0,n-len(row.get('rates') or [])))) for row in hist]
  def hours(v):
   if isinstance(v,(int,float)): return float(v)
   from datetime import datetime
@@ -52,12 +54,17 @@ def forecast(case):
     k=min(N,max(0,math.floor(r*N/100+.5))); counts[i].append(k); logs[i].append(_logit_pct(100*(k+.5)/(N+1)))
  groups={}
  for i,t in enumerate(case['trophies']): groups.setdefault(t.get('tier','unknown'),[]).append(i)
- current=[]; slopes=[]; residual=[]; flats=[]
+ current=[]; slopes=[]; residual=[]; flats=[]; missing=[]; fallback_logs=[]
  for i,arr in enumerate(logs):
   good=[(tt,y) for tt,y in zip(th,arr) if y is not None]; r=[x for x in good if x[0]>=cutoff] or good[-12:]
-  current.append(r[-1][1]); flats.append(len(r)<2 or max(y for _,y in r)-min(y for _,y in r)<1e-9)
+  absent=not r
+  if absent:
+   # No usable read: use a conservative case-derived fallback and keep a deliberately wide band.
+   fallback=max(.001,min(.1,_median([x for j,other in enumerate(logs) if j!=i for x in other if x is not None]) if any(x is not None for j,other in enumerate(logs) if j!=i for x in other) else .01))
+   fallback_logs.append(_logit_pct(fallback))
+  missing.append(absent); current.append(r[-1][1] if r else 0); flats.append(absent or len(r)<2 or max(y for _,y in r)-min(y for _,y in r)<1e-9)
   ps=[(r[b][1]-r[a][1])/((r[b][0]-r[a][0])/24) for a in range(len(r)) for b in range(a+1,len(r)) if r[b][0]>r[a][0]]
-  slopes.append(_median(ps) if ps else 0); med=_median([y for _,y in r]); residual.append(_median([abs(y-med) for _,y in r]) if len(r)>1 else 0)
+  slopes.append(_median(ps) if ps else 0); med=_median([y for _,y in r]) if r else 0; residual.append(_median([abs(y-med) for _,y in r]) if len(r)>1 else 0)
  pooled=slopes[:]
  for inds in groups.values():
   s=_median([slopes[i] for i in inds])
@@ -76,9 +83,14 @@ def forecast(case):
  rows=[]
  for i,t in enumerate(case['trophies']):
   last=counts[i][-1]; N=Ns[-1]
+  if missing[i]:
+   fallback=max(.001,min(.1,_median([1000*k/Ns[j] for j,other in enumerate(counts) if j!=i for k in other if k is not None]) if any(k is not None for j,other in enumerate(counts) if j!=i for k in other) else .01))
+   last=max(0,min(N,math.floor(fallback*N/1000+.5)))
   if last==N and hist[-1]['rates'][i] is not None and hist[-1]['rates'][i]>=99.995: qs=[100.]*5
   else:
-   if flats[i]: m=_logit_pct(hist[-1]['rates'][i] if hist[-1]['rates'][i] is not None else .01); sig=.025
+   if flats[i]:
+    m=_logit_pct(max(.001,min(.1,priors[i]))) if missing[i] else _logit_pct(hist[-1]['rates'][i] if hist[-1]['rates'][i] is not None else .01)
+    sig=.7 if missing[i] else .025
    else:
     w=last/(last+8); shrunk=w*last+(1-w)*priors[i]*N/1000
     m=_logit_pct(100*(shrunk+.5)/(N+1)); d=pooled[i]*2.8*(1-math.exp(-H/2.8)); m+=max(-.75,min(1.25,d))

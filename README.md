@@ -17,14 +17,28 @@ Practice mean logit pinball loss against answer set to the final observed rate (
 
 Verification from `python3 /home/agentuser/makefun/forecast/verify_model.py` (mean logit pinball loss; lower is better):
 
-| Case | Entry | Baseline | Delta |
-|---|---:|---:|---:|
-| s1 | 11.3859 | 11.0855 | +0.3004 |
-| s2 | 11.7422 | 11.3742 | +0.3679 |
-| s3 | 11.4339 | 11.1833 | +0.2506 |
-| Mean | 11.5207 | 11.2143 | +0.3063 |
+| Check | Result |
+|---|---|
+| Practice shape | p00, p01 valid; 2685 bytes each |
+| Synthetic shape | s1, s2, s3 valid (2874, 2859, 2853 bytes) |
+| Synthetic losses | s1 11.3859 vs 11.0855 baseline; s2 11.7422 vs 11.3742; s3 11.4339 vs 11.1833; mean 11.5207 vs 11.2143 (+0.3063) |
 
-The current synthetic evaluation is slightly worse than baseline; this remains a limitation. Practice cases ship without target answer reads, so verifier losses are unavailable for them.
+Edge cases from `python3 /home/agentuser/makefun/forecast/edge_test.py` (both Python and Node):
+
+| Case | Python | Node |
+|---|---|---|
+| nulls_inside | valid | valid |
+| one_read | valid | valid |
+| two_reads | valid | valid |
+| all_null_trophy | valid | valid |
+| bounds | valid | valid |
+| huge_tracked | valid | valid |
+| three_trophies | valid | valid |
+| many_reads | valid | valid |
+| horizon_zero | valid | valid |
+| flat | valid | valid |
+
+Practice p00 before/after: 55 rows vs 55; max quantile delta 0.0000 percentage points; byte-identical output. Practice cases have no answer read, so practice loss is not computable.
 
 Run `MAKEFUN_OUTPUT_DIR=out python3 main.py --self-test`; standard library only.
 
