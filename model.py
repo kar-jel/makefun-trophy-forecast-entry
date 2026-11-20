@@ -1,5 +1,6 @@
 """Two-series launch-week trophy forecast."""
 import math
+import re
 
 Z = [-1.6448536269514722, -0.6744897501960817, 0.0, 0.6744897501960817, 1.6448536269514722]
 
@@ -15,6 +16,20 @@ def _inv(x):
 def _median(xs):
     a=sorted(xs); n=len(a)
     return a[n//2] if n%2 else (a[n//2-1]+a[n//2])/2
+
+def _order(description):
+    d=description.lower()
+    m=re.search(r'complete chapter (\d+)',d)
+    if m: return 100+int(m.group(1))
+    if 'complete gone fishing' in d: return 1
+    if 'complete the final mission.' in d: return 200
+    m=re.search(r'complete (\d+) mission strands',d)
+    if m: return 300+int(m.group(1))
+    m=re.search(r'complete (\d+) challenges',d)
+    if m: return 400+int(m.group(1))
+    m=re.search(r'complete (\d+) collectible',d)
+    if m: return 400+int(m.group(1))
+    return None
 
 def forecast(case):
  hist=case['history']; n=len(case['trophies']); H=max(0,case['horizon_minutes']/1440)
@@ -51,6 +66,13 @@ def forecast(case):
  for inds in groups.values():
   r=[1000*k/N for i in inds for k,N in zip(counts[i],Ns) if k is not None]
   for i in inds: priors[i]=_median(r) if r else .1
+ orders={i:_order(t.get('description','')) for i,t in enumerate(case['trophies'])}
+ progression=sorted((o,i) for i,o in orders.items() if o is not None)
+ observed=[(o,i,hist[-1]['rates'][i] or 0) for o,i in progression]
+ front_o=max((o for o,i,r in observed if r>=5),default=min((o for o,i in progression),default=0))
+ front_rate=max((r for o,i,r in observed if o<=front_o),default=.01)
+ front=max(0,_logit_pct(front_rate)-_logit_pct(.01))
+ step=max(.08,min(.6,front/max(1,front_o-min((o for o,i in progression),default=front_o))))
  rows=[]
  for i,t in enumerate(case['trophies']):
   last=counts[i][-1]; N=Ns[-1]
@@ -60,10 +82,20 @@ def forecast(case):
    else:
     w=last/(last+8); shrunk=w*last+(1-w)*priors[i]*N/1000
     m=_logit_pct(100*(shrunk+.5)/(N+1)); d=pooled[i]*2.8*(1-math.exp(-H/2.8)); m+=max(-.75,min(1.25,d))
-    sig=min(1.15,max(.09,.12+.35*math.sqrt(H)+min(.35,residual[i]*1.8)))
-   sig=math.sqrt(sig*sig+(.12*noise*min(H,5))**2)
-   qs=[_inv(m+z*sig) for z in Z]
-   if last==0: qs[2]=max(qs[2],min(.1,priors[i]/10)); qs[3]=max(qs[3],qs[2]); qs[4]=max(qs[4],qs[3])
+    sig=min(.5,max(.35,.35+min(.15,residual[i]*.5)))
+   o=orders[i]
+   waiting=o is not None and o>front_o and (hist[-1]['rates'][i] or 0)<=.02
+   if waiting:
+    gap=o-front_o; arrival=gap*step
+    sig=math.sqrt(sig*sig+min(2.0,arrival*.45)**2)
+    qs=[_inv(m+z*sig) for z in Z]
+    qs[2]=_inv(m)
+    qs[3]=max(qs[3],_inv(m+max(0,(H-arrival)*.8)))
+    qs[4]=max(qs[4],_inv(m+max(0,(H-arrival)*.8)+sig))
+   else:
+    sig=math.sqrt(sig*sig+(.12*noise*min(H,5))**2)
+    qs=[_inv(m+z*sig) for z in Z]
+   if last==0 and not waiting: qs[2]=max(qs[2],min(.1,priors[i]/10)); qs[3]=max(qs[3],qs[2]); qs[4]=max(qs[4],qs[3])
   q=[round(x+1e-12,4) for x in qs]
   for j in range(1,5): q[j]=max(q[j],q[j-1])
   rows.append({'id':t['id'],'q':q})

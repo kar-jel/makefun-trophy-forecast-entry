@@ -98,6 +98,8 @@ def self_test() -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     spec=importlib.util.spec_from_file_location("local_score", "/home/agentuser/makefun/forecast/local_score.py")
     score=importlib.util.module_from_spec(spec); spec.loader.exec_module(score)
+    INPUT_DIR = Path(os.environ.get("MAKEFUN_INPUT_DIR", str(Path(__file__).resolve().parent / "input")))
+    OUTPUT_DIR = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", str(Path(__file__).resolve().parent / "out")))
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     cases=[]
     for path in sorted(INPUT_DIR.glob("*.in")):
@@ -106,6 +108,12 @@ def self_test() -> None:
         qs=[r["q"] for r in out["trophies"]]; assert all(len(q)==5 and q==sorted(q) for q in qs)
         assert dest.stat().st_size<=65536
         print(case["id"],len(qs),min(q[2] for q in qs),max(q[2] for q in qs),max(q[4]-q[0] for q in qs))
+        pred={r['id']:r['q'] for r in out['trophies']}
+        print('story trophies: name | last rate | total gain | target median')
+        for i,t in enumerate(case['trophies']):
+            if t.get('description','').lower().startswith('complete chapter') or 'complete gone fishing' in t.get('description','').lower():
+                last=case['history'][-1]['rates'][i]; q=pred[t['id']]
+                print(f"{t['name']} | {last:.2f}% | {q[2]-last:+.2f} pp | {q[2]:.2f}%")
         cases.append(case)
     for speed,gain in ((1.2,1.0),(2.0,1.6),(3.5,2.2)):
         c=score.synth_case("synthetic",60,108,tau_days=speed,gain=gain)
