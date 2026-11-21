@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory() as td:
   c=json.loads(path.read_text()); (inp/f'{name}.in').write_text(json.dumps(c)); cases.append((name,c))
  c=synth(); (inp/'launchweek.in').write_text(json.dumps(c)); cases.append(('launchweek',c))
  outs={}
- for lang,cmd in [('Python',[sys.executable,str(ROOT/'main.py')]),('TypeScript',['node',str(ROOT/'main.ts')])]:
+ for lang,cmd in [('Python',[sys.executable,str(ROOT/'main.py')]),('TypeScript',['node',str(ROOT/'tools'/'forecast.ts')])]:
   out=td/lang; env=os.environ|{'MAKEFUN_INPUT_DIR':str(inp),'MAKEFUN_OUTPUT_DIR':str(out)}
   start=time.monotonic(); subprocess.run(cmd,cwd=ROOT,env=env,check=True,timeout=8); elapsed=time.monotonic()-start
   outs[lang]={};

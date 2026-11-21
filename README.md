@@ -53,7 +53,7 @@ Practice p00 before/after: 55 rows vs 55; max quantile delta 0.0000 percentage p
 
 Run `MAKEFUN_OUTPUT_DIR=out python3 main.py --self-test`; standard library only.
 
-Entrypoints: `main.py` runs the Python model in `model.py`; `main.ts` is its Node 22 TypeScript port. Both read every `.in` case and write the matching `.out` JSON.
+Entrypoint: `main.py` (python3.13) runs the Python model in `model.py`; `tools/forecast.ts` is its Node 22 TypeScript port, kept beside `tools/compare.py` and not an entrypoint (`main.ts` or `main.py` at the root, one of them, never both).
 
 Python/TypeScript agreement (largest absolute quantile difference, percentage points):
 
